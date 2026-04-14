@@ -33,9 +33,15 @@ async function initDatabase() {
 
   if (usePostgres) {
     console.log('Using PostgreSQL database...');
+    const params = new URL(process.env.DATABASE_URL);
     const pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
-      ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+      host: params.hostname,
+      port: params.port,
+      user: params.username,
+      password: params.password,
+      database: params.pathname.slice(1),
+      ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+      family: 4
     });
     
     db = {
