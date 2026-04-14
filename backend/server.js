@@ -5,6 +5,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const { Pool } = require('pg');
+const { createClient } = require('@supabase/supabase-js');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -27,11 +28,59 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage: storage });
 
+function createSupabaseDB(supabase) {
+  return {
+    prepare: (sql) => {
+      return {
+        get: async (...params) => {
+          const { data, error } = await supabase.rpc('execute_sql', { sql, params });
+          if (error) throw error;
+          return data[0] || null;
+        },
+        all: async (...params) => {
+          const { data, error } = await supabase.rpc('execute_sql', { sql, params });
+          if (error) throw error;
+          return data || [];
+        },
+        run: async (...params) => {
+          const { data, error } = await supabase.rpc('execute_sql', { 
+            sql: sql + ' RETURNING id', 
+            params 
+          });
+          if (error) throw error;
+          return { lastInsertRowid: data[0]?.id || null };
+        }
+      };
+    },
+    exec: async (sql) => {
+      const { error } = await supabase.rpc('execute_sql', { sql, params: [] });
+      if (error) throw error;
+    }
+  };
+}
+
 async function initDatabase() {
   let db;
+  const useSupabase = !!process.env.SUPABASE_URL && !!process.env.SUPABASE_KEY;
   const usePostgres = !!process.env.DATABASE_URL;
 
-  if (usePostgres) {
+  if (useSupabase) {
+    console.log('Using Supabase API...');
+    const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
+    
+    const { error: funcError } = await supabase.rpc('execute_sql', { 
+      sql: `CREATE OR REPLACE FUNCTION execute_sql(sql text, params any[] DEFAULT '{}')
+      RETURNS SETOF jsonb AS $$
+      BEGIN
+        RETURN QUERY EXECUTE sql USING params;
+      END;
+      $$ LANGUAGE plpgsql SECURITY DEFINER;`,
+      params: []
+    }).catch(() => ({ error: null }));
+    
+    db = createSupabaseDB(supabase);
+    console.log('Supabase connected!');
+  } else if (usePostgres) {
     console.log('Using PostgreSQL database...');
     const pool = new Pool({
       connectionString: process.env.DATABASE_URL,
