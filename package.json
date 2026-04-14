@@ -1,0 +1,13 @@
+{
+  "name": "volunteer-system",
+  "version": "1.0.0",
+  "description": "Volunteer Service Management System",
+  "scripts": {
+    "start": "cd backend && node server.js",
+    "build": "cd frontend && npm install && npm run build",
+    "install-all": "cd backend && npm install && cd ../frontend && npm install"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
