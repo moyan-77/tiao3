@@ -4,7 +4,10 @@ const bcrypt = require('bcryptjs');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const dns = require('dns');
 const { Pool } = require('pg');
+
+dns.setDefaultResultOrder('ipv4first');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -34,14 +37,16 @@ async function initDatabase() {
   if (usePostgres) {
     console.log('Using PostgreSQL database...');
     const params = new URL(process.env.DATABASE_URL);
+    const addresses = await dns.promises.lookup(params.hostname, { family: 4 });
+    console.log('Connecting to IP:', addresses.address);
+    
     const pool = new Pool({
-      host: params.hostname,
+      host: addresses.address,
       port: params.port,
       user: params.username,
       password: params.password,
       database: params.pathname.slice(1),
-      ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-      family: 4
+      ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
     });
     
     db = {
