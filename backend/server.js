@@ -267,7 +267,10 @@ app.use((req, res, next) => {
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+  console.log('========================================');
+  console.log(`🚀 Volunteer System running on port ${PORT}`);
   console.log(`📁 Data stored in ./data/ folder`);
-  console.log(`✅ Ready!`);
+  console.log(`🌐 http://0.0.0.0:${PORT}`);
+  console.log('========================================');
+  console.log('✅ Railway deployment ready!');
 });
