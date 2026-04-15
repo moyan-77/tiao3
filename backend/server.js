@@ -125,7 +125,7 @@ async function initDB() {
   }
 }
 
-function read(name) {
+async function read(name) {
   if (!USE_DB) {
     const f = path.join(__dirname, 'data', `${name}.json`);
     if (!fs.existsSync(f)) return [];
@@ -136,14 +136,11 @@ function read(name) {
       return [];
     }
   }
-  throw new Error('Use readDB() for database mode');
-}
-
-async function readDB(name) {
-  if (!USE_DB) return read(name);
   const res = await pool.query(`SELECT * FROM ${name} ORDER BY id`);
   return res.rows;
 }
+
+function id(arr) { return arr.length ? Math.max(...arr.map(x => x.id)) + 1 : 1; }
 
 async function write(name, data) {
   if (!USE_DB) {
@@ -212,11 +209,11 @@ function getDataFile(user_type) {
 
 console.log('Server starting...');
 
-app.post('/api/login', (req, res) => {
+app.post('/api/login', async (req, res) => {
   const { username, password } = req.body;
   const user_type = req.body.user_type || req.body.userType;
   const file = getDataFile(user_type);
-  const users = read(file);
+  const users = await read(file);
   const user = users.find(u => u.username === username);
   if (!user) return res.status(400).json({ message: '用户名或密码错误' });
   if (!bcrypt.compareSync(password, user.password)) return res.status(400).json({ message: '用户名或密码错误' });
@@ -232,15 +229,19 @@ app.post('/api/login', (req, res) => {
   });
 });
 
-app.post('/api/register', (req, res) => {
+app.post('/api/register', async (req, res) => {
   const { username, password, phone } = req.body;
   const user_type = req.body.user_type || req.body.userType;
   const file = getDataFile(user_type);
-  const users = read(file);
+  const users = await read(file);
   if (users.find(u => u.username === username)) return res.status(400).json({ message: '用户名已存在' });
   const user = { id: id(users), username, password: bcrypt.hashSync(password, 10), phone, avatar: '', created_at: new Date().toISOString() };
-  users.push(user);
-  write(file, users);
+  if (!USE_DB) {
+    users.push(user);
+    await write(file, users);
+  } else {
+    await insert(file, user);
+  }
   res.json({ message: '注册成功', user_id: user.id });
 });
 
