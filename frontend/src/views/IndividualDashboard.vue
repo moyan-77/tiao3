@@ -362,7 +362,8 @@ import { useRouter } from 'vue-router'
 import axios from 'axios'
 
 const router = useRouter()
-const user = JSON.parse(localStorage.getItem('user') || 'null')
+const raw = localStorage.getItem('user')
+const user = raw && raw !== 'undefined' ? JSON.parse(raw) : null
 
 if (!user || user.userType !== 'individual') {
   router.push('/login')
@@ -422,15 +423,17 @@ function getCheckinHours(serviceId) {
 }
 
 const myApprovedGroups = computed(() => {
-  return myGroups.value.filter(g => g.status === 'approved')
+  const approvedMemberIds = myGroups.value
+    .filter(g => g.status === 'approved')
+    .map(g => Number(g.group_id))
+  
+  return groups.value
+    .filter(g => approvedMemberIds.includes(Number(g.id)))
+    .map(g => ({ group_id: g.id, group_name: g.username, ...g }))
 })
 
 function getAvailableGroupsForService(serviceId) {
-  const registeredGroupIds = allRegistrations.value
-    .filter(r => r.service_id === serviceId && r.user_type === 'group')
-    .map(r => r.group_id)
-  
-  return myApprovedGroups.value.filter(g => registeredGroupIds.includes(g.group_id))
+  return myApprovedGroups.value
 }
 
 function startEdit() {
@@ -549,7 +552,7 @@ async function handleSaveProfile() {
 async function loadGroups() {
   try {
     const res = await axios.get('/api/groups')
-    groups.value = res.data
+    groups.value = [].concat(res.data || [])
   } catch (error) {
     console.error(error)
   }
@@ -559,7 +562,7 @@ async function loadMyGroups() {
   if (!user) return
   try {
     const res = await axios.get(`/api/individuals/${user.id}/groups`)
-    myGroups.value = res.data
+    myGroups.value = [].concat(res.data || [])
   } catch (error) {
     console.error(error)
   }
@@ -568,7 +571,7 @@ async function loadMyGroups() {
 async function joinGroup(group) {
   if (!user) return
   try {
-    await axios.post(`/api/groups/${group.id}/members`, {
+    await axios.post(`/api/groups/${group.id}/join`, {
       user_id: user.id,
       username: user.username
     })
@@ -582,7 +585,7 @@ async function joinGroup(group) {
 async function loadServices() {
   try {
     const res = await axios.get('/api/services')
-    services.value = res.data
+    services.value = [].concat(res.data || [])
   } catch (error) {
     console.error(error)
   }
@@ -592,7 +595,7 @@ async function loadMyRegistrations() {
   if (!user) return
   try {
     const res = await axios.get(`/api/individuals/${user.id}/registrations`)
-    myRegistrations.value = res.data
+    myRegistrations.value = [].concat(res.data || [])
   } catch (error) {
     console.error(error)
   }
@@ -601,7 +604,7 @@ async function loadMyRegistrations() {
 async function loadAllRegistrations() {
   try {
     const res = await axios.get(`/api/services/registrations`)
-    allRegistrations.value = res.data
+    allRegistrations.value = [].concat(res.data || [])
   } catch (error) {
     console.error(error)
   }
@@ -612,9 +615,16 @@ async function loadCheckinStatuses() {
   try {
     const res = await axios.get(`/api/individuals/${user.id}/check-ins`)
     const statuses = {}
-    res.data.forEach(c => {
-      statuses[c.service_id] = c.status
-      statuses[c.service_id + '_hours'] = c.hours_earned
+    const data = [].concat(res.data || [])
+    data.forEach(c => {
+      if (c.check_in_time && !c.check_out_time) {
+        statuses[c.service_id] = 'checked-in'
+      } else if (c.check_in_time && c.check_out_time) {
+        statuses[c.service_id] = 'completed'
+      } else {
+        statuses[c.service_id] = 'not-checked-in'
+      }
+      statuses[c.service_id + '_hours'] = c.hours || 0
     })
     checkinStatuses.value = statuses
   } catch (error) {

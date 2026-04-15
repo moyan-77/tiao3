@@ -227,21 +227,15 @@
 
               <div class="service-action-row">
                 <button 
-                  v-if="!isGroupRegistered(service.id)"
                   class="register-btn-group" 
                   @click.stop="handleGroupRegister(service)"
                   :disabled="service.current_participants >= service.max_participants"
                 >
                   团体统一报名
                 </button>
-                <template v-else>
-                  <div class="status-row" @click.stop>
-                    <span class="registered-badge-inline">✓ 团体已报名</span>
-                  </div>
-                  <button class="view-reg-btn" @click.stop="openRegList(service)">
-                    👥 查看内部已报名成员 ({{ getGroupRegCount(service.id) }}人)
-                  </button>
-                </template>
+                <button class="view-reg-btn" @click.stop="openRegList(service)">
+                  👥 查看内部已报名成员 ({{ getGroupRegCount(service.id) }}人)
+                </button>
               </div>
             </div>
           </div>
@@ -378,7 +372,8 @@ import { useRouter } from 'vue-router'
 import axios from 'axios'
 
 const router = useRouter()
-const user = JSON.parse(localStorage.getItem('user') || 'null')
+const raw = localStorage.getItem('user')
+const user = raw && raw !== 'undefined' ? JSON.parse(raw) : null
 
 if (!user || user.userType !== 'group') {
   router.push('/login')
@@ -495,26 +490,43 @@ function getTargetLabel(value) {
 }
 
 function isGroupRegistered(serviceId) {
-  return allRegistrations.value.some(r => 
-    r.service_id === serviceId && 
-    r.user_type === 'group' && 
-    r.group_id === user.id
-  )
+  console.log('🔍 serviceId:', serviceId, 'type:', typeof serviceId)
+  console.log('🔍 user.id:', user.id, 'type:', typeof user.id)
+  console.log('🔍 allRegistrations:', allRegistrations.value)
+  const result = [].concat(allRegistrations.value || []).some(r => {
+    console.log('  对比 r:', r)
+    const match = 
+      Number(r.service_id) === Number(serviceId) && 
+      r.user_type === 'group' && 
+      Number(r.group_id) === Number(user.id)
+    console.log('  match:', match)
+    return match
+  })
+  console.log('🔍 最终结果:', result)
+  return result
 }
 
 function getGroupRegCount(serviceId) {
-  return allRegistrations.value.filter(r => 
-    r.service_id === serviceId && 
-    r.user_type === 'group_member' && 
-    r.group_id === user.id
-  ).length
+  console.log('📊 getGroupRegCount, serviceId:', serviceId)
+  console.log('📊 allRegistrations:', allRegistrations.value)
+  console.log('📊 user.id:', user.id)
+  const result = allRegistrations.value.filter(r => {
+    const match = 
+      Number(r.service_id) === Number(serviceId) && 
+      r.user_type === 'group_member' && 
+      Number(r.group_id) === Number(user.id)
+    console.log('  检查 r:', r, 'match:', match)
+    return match
+  })
+  console.log('📊 结果:', result.length)
+  return result.length
 }
 
 function getGroupRegistrations(serviceId) {
   return allRegistrations.value.filter(r => 
-    r.service_id === serviceId && 
+    Number(r.service_id) === Number(serviceId) && 
     r.user_type === 'group_member' && 
-    r.group_id === user.id
+    Number(r.group_id) === Number(user.id)
   )
 }
 
@@ -560,8 +572,9 @@ async function loadMembers() {
   if (!user) return
   try {
     const res = await axios.get(`/api/groups/${user.id}/members`)
-    applications.value = res.data.filter(m => m.status === 'pending')
-    approvedMembers.value = res.data.filter(m => m.status === 'approved')
+    const data = [].concat(res.data || [])
+    applications.value = data.filter(m => m.status === 'pending')
+    approvedMembers.value = data.filter(m => m.status === 'approved')
   } catch (error) {
     console.error(error)
   }
@@ -570,8 +583,8 @@ async function loadMembers() {
 async function approveMember(userId) {
   if (!user) return
   try {
-    await axios.post(`/api/groups/${user.id}/members/${userId}/approve`)
-    showToast('已同意加入！')
+    await axios.post(`/api/groups/${user.id}/approve`, { user_id: userId })
+    showToast('已同意加入！成员现在可以通过团体报名活动')
     loadMembers()
   } catch (error) {
     showToast('操作失败', 'error')
@@ -581,7 +594,7 @@ async function approveMember(userId) {
 async function rejectMember(userId) {
   if (!user) return
   try {
-    await axios.post(`/api/groups/${user.id}/members/${userId}/reject`)
+    await axios.post(`/api/groups/${user.id}/reject`, { user_id: userId })
     showToast('已拒绝申请')
     loadMembers()
   } catch (error) {
@@ -604,7 +617,7 @@ async function removeMember(userId) {
 async function loadServices() {
   try {
     const res = await axios.get('/api/services')
-    services.value = res.data
+    services.value = [].concat(res.data || [])
   } catch (error) {
     console.error(error)
   }
@@ -613,8 +626,8 @@ async function loadServices() {
 async function loadAllRegistrations() {
   if (!user) return
   try {
-    const res = await axios.get(`/api/services/registrations`)
-    allRegistrations.value = res.data.filter(r => r.group_id === user.id)
+    const res = await axios.get(`/api/groups/${user.id}/registrations`)
+    allRegistrations.value = [].concat(res.data || [])
   } catch (error) {
     console.error(error)
   }
@@ -631,8 +644,9 @@ async function handleGroupRegister(service) {
       username: user.username
     })
     showToast('团体报名成功！成员现在可通过团体报名此活动')
-    loadServices()
-    loadAllRegistrations()
+    setTimeout(() => {
+      location.reload()
+    }, 500)
   } catch (error) {
     showToast(error.response?.data?.message || '报名失败', 'error')
   }

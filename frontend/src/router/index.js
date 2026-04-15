@@ -40,7 +40,13 @@ const router = createRouter({
 })
 
 router.beforeEach((to, from, next) => {
-  const user = JSON.parse(localStorage.getItem('user') || 'null')
+  let user = null
+  try {
+    const raw = localStorage.getItem('user')
+    user = raw && raw !== 'undefined' ? JSON.parse(raw) : null
+  } catch (e) {
+    user = null
+  }
   
   if (to.meta.requiresAuth) {
     if (!user) {

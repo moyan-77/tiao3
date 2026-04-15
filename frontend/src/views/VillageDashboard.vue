@@ -295,7 +295,8 @@ import { useRouter } from 'vue-router'
 import axios from 'axios'
 
 const router = useRouter()
-const user = JSON.parse(localStorage.getItem('user') || 'null')
+const raw = localStorage.getItem('user')
+const user = raw && raw !== 'undefined' ? JSON.parse(raw) : null
 
 if (!user || user.userType !== 'village') {
   router.push('/login')
@@ -413,8 +414,8 @@ async function handleAvatarUpload(event) {
 async function loadServices() {
   if (!user) return
   try {
-    const res = await axios.get('/api/services')
-    services.value = res.data
+    const res = await axios.get(`/api/village/${user.id}/services`)
+    services.value = [].concat(res.data || [])
   } catch (error) {
     console.error(error)
   }
@@ -424,10 +425,7 @@ async function handlePublish() {
   if (!user) return
   loading.value = true
   try {
-    await axios.post('/api/services', {
-      ...form,
-      creator_id: user.id
-    })
+    await axios.post(`/api/village/${user.id}/services`, form)
     showToast('发布成功！')
     showPublishModal.value = false
     loadServices()
