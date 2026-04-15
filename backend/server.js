@@ -16,22 +16,22 @@ if (fs.existsSync(path.join(__dirname, 'public'))) {
   app.use(express.static(path.join(__dirname, 'public')));
 }
 
-fs.mkdirSync('./uploads', { recursive: true });
-fs.mkdirSync('./data', { recursive: true });
+fs.mkdirSync(path.join(__dirname, 'uploads'), { recursive: true });
+fs.mkdirSync(path.join(__dirname, 'data'), { recursive: true });
 
 function read(name) {
-  const f = `./data/${name}.json`;
+  const f = path.join(__dirname, 'data', `${name}.json`);
   return fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, 'utf8')) : [];
 }
-function write(name, d) { fs.writeFileSync(`./data/${name}.json`, JSON.stringify(d, null, 2)); }
+function write(name, d) { fs.writeFileSync(path.join(__dirname, 'data', `${name}.json`), JSON.stringify(d, null, 2)); }
 function id(arr) { return arr.length ? Math.max(...arr.map(x => x.id)) + 1 : 1; }
 
 ['village', 'groups', 'individuals', 'services', 'members', 'registrations', 'checkins'].forEach(t => {
-  if (!fs.existsSync(`./data/${t}.json`)) write(t, []);
+  if (!fs.existsSync(path.join(__dirname, 'data', `${t}.json`))) write(t, []);
 });
 
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, './uploads/'),
+  destination: (req, file, cb) => cb(null, path.join(__dirname, 'uploads')),
   filename: (req, file, cb) => cb(null, Date.now() + path.extname(file.originalname))
 });
 const upload = multer({ storage });
@@ -259,6 +259,7 @@ app.post('/api/upload/avatar', upload.single('avatar'), (req, res) => {
 
 app.use((req, res, next) => {
   if (req.path.startsWith('/api') || req.path.startsWith('/uploads')) return next();
+  console.log('Looking for index.html at:', path.join(__dirname, 'public', 'index.html'));
   if (fs.existsSync(path.join(__dirname, 'public', 'index.html'))) {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
   } else {
