@@ -266,11 +266,11 @@ app.use((req, res, next) => {
   }
 });
 
-app.listen(PORT, '0.0.0.0', () => {
+app.listen(PORT, () => {
   console.log('========================================');
   console.log(`🚀 Volunteer System running on port ${PORT}`);
   console.log(`📁 Data stored in ./data/ folder`);
-  console.log(`🌐 http://0.0.0.0:${PORT}`);
+  console.log(`🌐 Environment PORT: ${process.env.PORT || 'not set, using 3000'}`);
   console.log('========================================');
-  console.log('✅ Railway deployment ready!');
+  console.log('✅ Server listening successfully!');
 });
