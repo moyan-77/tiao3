@@ -1,7 +1,7 @@
 <template>
   <div class="dashboard page-container">
     <div class="header-row-1">
-      <h1 class="page-title">🏛️ 村委会管理中心</h1>
+      <h1 class="page-title">🏛️ 社区管理中心</h1>
     </div>
     
     <div class="header-row-2">
@@ -12,7 +12,7 @@
           <input type="file" accept="image/*" class="hidden-input" @change="handleAvatarUpload($event)" />
         </div>
         <span class="welcome-text">欢迎您，{{ user?.username }}</span>
-        <span class="role-badge">村委会管理员</span>
+        <span class="role-badge">社区管理员</span>
         <button class="logout-btn" @click="handleLogout">
           退出登录
         </button>
