@@ -96,7 +96,7 @@ import axios from 'axios'
 const router = useRouter()
 
 const userTypes = [
-  { label: '村委会', value: 'village', icon: '🏛️' },
+  { label: '社区', value: 'village', icon: '🏛️' },
   { label: '志愿团体', value: 'group', icon: '🤝' },
   { label: '个人用户', value: 'individual', icon: '👤' }
 ]
