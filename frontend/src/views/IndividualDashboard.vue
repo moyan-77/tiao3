@@ -16,6 +16,7 @@
         <span class="welcome-text">欢迎您，{{ user?.username }}</span>
         <span class="role-badge">个人志愿者</span>
         <span class="hours-badge">⏱️ 累计 {{ totalHours }} 志愿时长</span>
+        <span class="points-badge">💰 {{ totalPoints }} 积分</span>
         <button class="logout-btn" @click="handleLogout">退出登录</button>
       </div>
     </div>
@@ -424,6 +425,76 @@
         </div>
       </div>
     </div>
+
+    <div v-if="activeTab === 'mall'" class="mall-section">
+      <div class="points-header-card">
+        <div class="points-info">
+          <div class="points-icon">💰</div>
+          <div>
+            <div class="points-value">{{ totalPoints }}</div>
+            <div class="points-label">可用积分</div>
+          </div>
+        </div>
+        <div class="points-rule">
+          <span class="rule-item">⏱️ 1 志愿服务小时 = 10 积分</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h2>🎁 积分商城</h2>
+          <span class="mall-tip">用爱心积分兑换精美纪念品</span>
+        </div>
+        
+        <div v-if="rewards.length === 0" class="loading-state">
+          <div class="loading-spinner">⏳</div>
+          <p>商品加载中...</p>
+        </div>
+
+        <div v-else class="rewards-grid">
+          <div v-for="reward in rewards" :key="reward.id" class="reward-card">
+            <div class="reward-image">{{ reward.image }}</div>
+            <div class="reward-name">{{ reward.name }}</div>
+            <div class="reward-desc">{{ reward.description }}</div>
+            <div class="reward-footer">
+              <span class="reward-points">💰 {{ reward.points }} 积分</span>
+              <span class="reward-stock" :class="{ low: reward.stock < 10 }">库存 {{ reward.stock }}</span>
+            </div>
+            <button 
+              class="exchange-btn" 
+              :disabled="totalPoints < reward.points || reward.stock === 0"
+              @click="exchangeReward(reward)"
+            >
+              {{ totalPoints < reward.points ? '积分不足' : reward.stock === 0 ? '已售罄' : '立即兑换' }}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top: 20px;">
+        <div class="card-header">
+          <h2>📝 积分记录</h2>
+        </div>
+        
+        <div v-if="pointHistory.length === 0" class="empty-state">
+          <div class="empty-icon">📝</div>
+          <p>暂无积分记录，完成志愿服务即可获得积分</p>
+        </div>
+
+        <div v-else class="points-list">
+          <div v-for="item in pointHistory" :key="item.id" class="point-item">
+            <div class="point-icon">{{ item.type === 'earn' ? '💚' : '🧡' }}</div>
+            <div class="point-info">
+              <div class="point-desc">{{ item.description }}</div>
+              <div class="point-date">{{ formatDate(item.created_at) }}</div>
+            </div>
+            <div class="point-amount" :class="item.type">
+              {{ item.type === 'earn' ? '+' : '' }}{{ item.points }}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -444,7 +515,8 @@ const tabs = [
   { icon: '📋', label: '个人信息', value: 'profile' },
   { icon: '🤝', label: '志愿团体', value: 'groups' },
   { icon: '📋', label: '志愿服务', value: 'services' },
-  { icon: '⭐', label: '我的评价', value: 'ratings' }
+  { icon: '⭐', label: '我的评价', value: 'ratings' },
+  { icon: '🎁', label: '积分商城', value: 'mall' }
 ]
 
 const categories = [
@@ -479,11 +551,15 @@ const services = ref([])
 const myRegistrations = ref([])
 const allRegistrations = ref([])
 const totalHours = ref(0)
+const totalPoints = ref(0)
 const message = ref(null)
 const showGroupModal = ref(false)
 const currentService = ref(null)
 const isEditing = ref(false)
 const originalProfile = ref(null)
+const rewards = ref([])
+const pointHistory = ref([])
+const exchangeLoading = ref(false)
 const checkinStatuses = ref({})
 const myRatings = ref([])
 const ratingStats = ref({
@@ -637,6 +713,7 @@ async function loadProfile() {
         college_name: res.data.college_name || ''
       }
       totalHours.value = res.data.total_hours || 0
+      totalPoints.value = res.data.total_points || 0
     }
   } catch (error) {
     console.error(error)
@@ -836,6 +913,45 @@ async function loadRatingStats() {
   }
 }
 
+async function loadRewards() {
+  try {
+    const res = await axios.get('/api/rewards')
+    rewards.value = res.data || []
+  } catch (error) {
+    console.error(error)
+  }
+}
+
+async function loadPointHistory() {
+  if (!user) return
+  try {
+    const res = await axios.get(`/api/points/user/${user.id}`)
+    pointHistory.value = [].concat(res.data || [])
+  } catch (error) {
+    console.error(error)
+  }
+}
+
+async function exchangeReward(reward) {
+  if (!user || exchangeLoading.value) return
+  exchangeLoading.value = true
+  try {
+    const res = await axios.post('/api/exchanges', {
+      user_id: user.id,
+      reward_id: reward.id
+    })
+    showToast(res.data.message)
+    totalPoints.value -= reward.points
+    reward.stock--
+    loadPointHistory()
+    loadProfile()
+  } catch (error) {
+    showToast(error.response?.data?.message || '兑换失败', 'error')
+  } finally {
+    exchangeLoading.value = false
+  }
+}
+
 onMounted(() => {
   if (user) {
     loadProfile()
@@ -847,6 +963,8 @@ onMounted(() => {
     loadCheckinStatuses()
     loadMyRatings()
     loadRatingStats()
+    loadRewards()
+    loadPointHistory()
   }
 })
 </script>
@@ -2090,5 +2208,250 @@ onMounted(() => {
 .toast.error {
   background: linear-gradient(135deg, #ef4444, #dc2626);
   color: white;
+}
+
+.points-badge {
+  padding: 6px 14px;
+  background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+  color: white;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.points-header-card {
+  background: linear-gradient(135deg, #8b5cf6, #6366f1);
+  border-radius: 20px;
+  padding: 24px 28px;
+  margin-bottom: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 8px 24px rgba(139, 92, 246, 0.25);
+}
+
+.points-info {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.points-icon {
+  width: 64px;
+  height: 64px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  backdrop-filter: blur(10px);
+}
+
+.points-value {
+  font-size: 48px;
+  font-weight: 800;
+  color: white;
+  line-height: 1;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.points-label {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.85);
+  font-weight: 500;
+  margin-top: 4px;
+}
+
+.points-rule {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: right;
+}
+
+.rule-item {
+  background: rgba(255, 255, 255, 0.15);
+  color: white;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  backdrop-filter: blur(10px);
+}
+
+.mall-tip {
+  font-size: 14px;
+  color: #8b5cf6;
+  font-weight: 500;
+}
+
+.rewards-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.reward-card {
+  background: linear-gradient(135deg, #faf5ff, #ffffff);
+  border: 2px solid #e9d5ff;
+  border-radius: 16px;
+  padding: 16px;
+  text-align: center;
+  transition: all 0.3s ease;
+  display: flex;
+  flex-direction: column;
+}
+
+.reward-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 28px rgba(139, 92, 246, 0.15);
+  border-color: #8b5cf6;
+}
+
+.reward-image {
+  font-size: 56px;
+  margin-bottom: 12px;
+  filter: drop-shadow(0 4px 8px rgba(139, 92, 246, 0.2));
+}
+
+.reward-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: #581c87;
+  margin-bottom: 8px;
+}
+
+.reward-desc {
+  font-size: 13px;
+  color: #7c3aed;
+  line-height: 1.5;
+  margin-bottom: 16px;
+  flex: 1;
+}
+
+.reward-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.reward-points {
+  font-size: 15px;
+  font-weight: 700;
+  color: #8b5cf6;
+}
+
+.reward-stock {
+  font-size: 12px;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.reward-stock.low {
+  color: #f59e0b;
+}
+
+.exchange-btn {
+  width: 100%;
+  padding: 10px 16px;
+  background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.exchange-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(139, 92, 246, 0.3);
+}
+
+.exchange-btn:disabled {
+  background: #cbd5e1;
+  cursor: not-allowed;
+  opacity: 0.8;
+}
+
+.points-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.point-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.03), white);
+  border-radius: 12px;
+  border: 1px solid rgba(139, 92, 246, 0.1);
+  transition: all 0.3s ease;
+}
+
+.point-item:hover {
+  border-color: rgba(139, 92, 246, 0.25);
+}
+
+.point-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+}
+
+.point-info {
+  flex: 1;
+}
+
+.point-desc {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1e293b;
+  margin-bottom: 4px;
+}
+
+.point-date {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.point-amount {
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.point-amount.earn {
+  color: #10b981;
+}
+
+.point-amount.exchange {
+  color: #f59e0b;
+}
+
+.loading-state {
+  text-align: center;
+  padding: 40px 20px;
+  color: #64748b;
+}
+
+.loading-spinner {
+  font-size: 40px;
+  margin-bottom: 12px;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 </style>
