@@ -131,6 +131,32 @@ async function initDB() {
         tags TEXT[],
         created_at TIMESTAMP DEFAULT NOW()
       );
+      CREATE TABLE IF NOT EXISTS points (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER,
+        username TEXT,
+        points INTEGER,
+        type TEXT,
+        description TEXT,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS rewards (
+        id SERIAL PRIMARY KEY,
+        name TEXT,
+        points INTEGER,
+        image TEXT,
+        description TEXT,
+        stock INTEGER
+      );
+      CREATE TABLE IF NOT EXISTS exchanges (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER,
+        username TEXT,
+        reward_id INTEGER,
+        reward_name TEXT,
+        points_spent INTEGER,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
     `);
     console.log('✅ Database tables initialized');
   } finally {
@@ -456,15 +482,33 @@ app.post('/api/services/:id/check-out', async (req, res) => {
   }
   const users = await read('individuals');
   const u = users.find(x => x.id == user_id);
+  const pointsEarned = hours * 10;
   if (u) { 
-    u.total_hours = (u.total_hours || 0) + hours; 
+    u.total_hours = (u.total_hours || 0) + hours;
+    u.total_points = (u.total_points || 0) + pointsEarned;
     if (!USE_DB) {
       await write('individuals', users);
     } else {
-      await update('individuals', u.id, { total_hours: u.total_hours });
+      await update('individuals', u.id, { total_hours: u.total_hours, total_points: u.total_points });
     }
   }
-  res.json({ message: `签退成功，获得 ${hours} 小时`, hours });
+  const points = await read('points');
+  const newPoint = {
+    id: id(points),
+    user_id: parseInt(user_id),
+    username: u?.username || '',
+    points: pointsEarned,
+    type: 'earn',
+    description: `完成「${service?.title}」志愿服务`,
+    created_at: new Date().toISOString()
+  };
+  if (!USE_DB) {
+    points.push(newPoint);
+    await write('points', points);
+  } else {
+    await insert('points', newPoint);
+  }
+  res.json({ message: `签退成功，获得 ${hours} 小时，${pointsEarned} 积分！`, hours, points: pointsEarned });
 });
 
 app.get('/api/services/:id/check-status/:user_id', async (req, res) => {
@@ -686,6 +730,110 @@ app.get('/api/ratings/stats/:user_id', async (req, res) => {
     percent: total ? Math.round((userRatings.filter(r => r.rating == star).length / total) * 100) : 0
   }));
   res.json({ total, avgRating: Math.round(avgRating * 10) / 10, distribution });
+});
+
+async function initRewards() {
+  const rewards = await read('rewards');
+  if (rewards.length === 0) {
+    const defaultRewards = [
+      { id: 1, name: '志愿服务纪念徽章', points: 50, image: '🎖️', description: '精美金属纪念徽章，表彰您的爱心奉献', stock: 100 },
+      { id: 2, name: '定制志愿者T恤', points: 150, image: '👕', description: '纯棉舒适T恤，印有爱心志愿服务logo', stock: 50 },
+      { id: 3, name: '志愿服务保温杯', points: 200, image: '🥤', description: '304不锈钢保温杯，温暖您的每一刻', stock: 30 },
+      { id: 4, name: '定制雨伞', points: 180, image: '☂️', description: '晴雨两用，志愿服务风雨同行', stock: 40 },
+      { id: 5, name: '荣誉证书框', points: 100, image: '🖼️', description: '精美木质证书框，珍藏您的荣誉', stock: 60 },
+      { id: 6, name: '爱心笔记本套装', points: 80, image: '📓', description: '优质笔记本+签字笔，记录温暖瞬间', stock: 80 },
+      { id: 7, name: '土鸡蛋30枚', points: 60, image: '🥚', description: '新鲜农家土鸡蛋，营养又健康', stock: 200 },
+      { id: 8, name: '优质大米5kg', points: 80, image: '🍚', description: '东北优质大米，餐桌上的美味', stock: 100 },
+      { id: 9, name: '食用油1.8L', points: 100, image: '🫒', description: '非转基因大豆食用油', stock: 80 },
+      { id: 10, name: '家庭装牙膏套装', points: 70, image: '🪥', description: '3支装家庭牙膏套装', stock: 150 },
+      { id: 11, name: '洗衣液2kg', points: 75, image: '🧺', description: '薰衣草香氛洗衣液，持久留香', stock: 120 },
+      { id: 12, name: '洗洁精1kg', points: 50, image: '🧴', description: '食品级洗洁精，安全又放心', stock: 150 },
+      { id: 13, name: '精品咖啡豆', points: 90, image: '☕', description: '阿拉比卡精品咖啡豆', stock: 60 },
+      { id: 14, name: '便携充电宝', points: 160, image: '🔋', description: '10000mAh超薄充电宝，小巧便携', stock: 40 },
+      { id: 15, name: '无线蓝牙耳机', points: 280, image: '🎧', description: '高品质蓝牙耳机，运动必备', stock: 30 },
+      { id: 16, name: '电影兑换券', points: 120, image: '🎬', description: '2D/3D通兑电影票2张', stock: 100 },
+      { id: 17, name: '品牌奶茶券2张', points: 60, image: '🧋', description: '品牌奶茶兑换券2张', stock: 150 },
+      { id: 18, name: '纯棉毛巾3条装', points: 65, image: '🛁', description: '新疆长绒棉毛巾，亲肤柔软', stock: 120 },
+      { id: 19, name: '抽纸整箱24包', points: 55, image: '🧻', description: '原生木浆抽纸整箱', stock: 200 },
+      { id: 20, name: '医用外科口罩50只', points: 40, image: '😷', description: '独立包装医用口罩', stock: 300 }
+    ];
+    if (!USE_DB) {
+      await write('rewards', defaultRewards);
+    } else {
+      defaultRewards.forEach(r => insert('rewards', r));
+    }
+  }
+}
+initRewards();
+
+app.get('/api/rewards', async (req, res) => {
+  const rewards = await read('rewards');
+  res.json(rewards);
+});
+
+app.get('/api/points/user/:user_id', async (req, res) => {
+  const points = await read('points');
+  const userPoints = points.filter(p => p.user_id == req.params.user_id);
+  res.json(userPoints.reverse());
+});
+
+app.post('/api/exchanges', async (req, res) => {
+  const { user_id, reward_id } = req.body;
+  const users = await read('individuals');
+  const user = users.find(u => u.id == user_id);
+  const rewards = await read('rewards');
+  const reward = rewards.find(r => r.id == reward_id);
+  
+  if (!user || !reward) return res.status(400).json({ message: '参数错误' });
+  if ((user.total_points || 0) < reward.points) return res.status(400).json({ message: '积分不足' });
+  if (reward.stock <= 0) return res.status(400).json({ message: '库存不足' });
+  
+  user.total_points -= reward.points;
+  reward.stock--;
+  
+  const exchanges = await read('exchanges');
+  const newExchange = {
+    id: id(exchanges),
+    user_id: parseInt(user_id),
+    username: user.username,
+    reward_id: parseInt(reward_id),
+    reward_name: reward.name,
+    points_spent: reward.points,
+    created_at: new Date().toISOString()
+  };
+  
+  const points = await read('points');
+  const newPoint = {
+    id: id(points),
+    user_id: parseInt(user_id),
+    username: user.username,
+    points: -reward.points,
+    type: 'exchange',
+    description: `兑换「${reward.name}」`,
+    created_at: new Date().toISOString()
+  };
+  
+  if (!USE_DB) {
+    await write('individuals', users);
+    await write('rewards', rewards);
+    exchanges.push(newExchange);
+    await write('exchanges', exchanges);
+    points.push(newPoint);
+    await write('points', points);
+  } else {
+    await update('individuals', user.id, { total_points: user.total_points });
+    await update('rewards', reward.id, { stock: reward.stock });
+    await insert('exchanges', newExchange);
+    await insert('points', newPoint);
+  }
+  
+  res.json({ message: `兑换成功！消耗 ${reward.points} 积分`, exchange: newExchange });
+});
+
+app.get('/api/exchanges/user/:user_id', async (req, res) => {
+  const exchanges = await read('exchanges');
+  const userExchanges = exchanges.filter(e => e.user_id == req.params.user_id);
+  res.json(userExchanges.reverse());
 });
 
 app.use((req, res) => {
