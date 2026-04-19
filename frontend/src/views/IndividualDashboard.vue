@@ -1,7 +1,14 @@
 <template>
   <div class="dashboard page-container">
+    <span class="page-dec dec-1">🌟</span>
+    <span class="page-dec dec-2">💪</span>
+    <span class="page-dec dec-3">🏆</span>
+    <span class="page-dec dec-4">❤️</span>
     <div class="header-row-1">
-      <h1 class="page-title">👤 个人用户中心</h1>
+      <h1 class="page-title">👤 个人志愿服务中心 <span class="title-badge">🌟</span></h1>
+      <p class="volunteer-slogan">
+        <span class="slogan-icon">✨</span> 爱心 · 责任 · 行动 · 担当 · 让世界更美好 <span class="slogan-icon">✨</span>
+      </p>
     </div>
     
     <div class="header-row-2">
@@ -13,7 +20,7 @@
       </div>
     </div>
 
-    <div class="tabs-row">
+    <div class="tabs-bar">
       <button 
         v-for="tab in tabs" 
         :key="tab.value"
@@ -353,6 +360,70 @@
         </div>
       </div>
     </div>
+
+    <div v-if="activeTab === 'ratings'" class="ratings-section">
+      <div class="rating-stats-card">
+        <div class="rating-overview">
+          <div class="rating-big-number">
+            <div class="rating-score">{{ ratingStats.avgRating || 0 }}</div>
+            <div class="rating-stars">
+              <span v-for="i in 5" :key="i" class="mini-star">
+                {{ i <= Math.round(ratingStats.avgRating) ? '⭐' : '☆' }}
+              </span>
+            </div>
+            <div class="rating-count">共 {{ ratingStats.total }} 条评价</div>
+          </div>
+          
+          <div class="rating-distribution">
+            <div 
+              v-for="item in ratingStats.distribution" 
+              :key="item.star" 
+              class="rating-bar-row"
+            >
+              <span class="bar-label">{{ item.star }}星</span>
+              <div class="bar-container">
+                <div class="bar-fill" :style="{ width: item.percent + '%' }"></div>
+              </div>
+              <span class="bar-count">({{ item.count }})</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h2>📝 评价详情</h2>
+        </div>
+        
+        <div v-if="myRatings.length === 0" class="empty-state">
+          <div class="empty-icon">⭐</div>
+          <p>暂无评价记录，完成志愿服务后社区会对您进行评价</p>
+        </div>
+
+        <div v-else class="rating-list">
+          <div v-for="rating in myRatings" :key="rating.id" class="rating-item">
+            <div class="rating-header">
+              <div class="rating-service">🎯 {{ rating.service_title }}</div>
+              <div class="rating-date">{{ formatDate(rating.created_at) }}</div>
+            </div>
+            <div class="rating-stars-row">
+              <span v-for="i in 5" :key="i" class="star-item">
+                {{ i <= rating.rating ? '⭐' : '☆' }}
+              </span>
+              <span class="rating-level">{{ getRatingLevel(rating.rating) }}</span>
+            </div>
+            <div v-if="rating.tags && rating.tags.length" class="rating-tags">
+              <span v-for="tag in rating.tags" :key="tag" class="rating-tag">
+                {{ getTagLabel(tag) }}
+              </span>
+            </div>
+            <div v-if="rating.comment" class="rating-comment">
+              💬 {{ rating.comment }}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -372,7 +443,8 @@ if (!user || user.userType !== 'individual') {
 const tabs = [
   { icon: '📋', label: '个人信息', value: 'profile' },
   { icon: '🤝', label: '志愿团体', value: 'groups' },
-  { icon: '📋', label: '志愿服务', value: 'services' }
+  { icon: '📋', label: '志愿服务', value: 'services' },
+  { icon: '⭐', label: '我的评价', value: 'ratings' }
 ]
 
 const categories = [
@@ -413,9 +485,44 @@ const currentService = ref(null)
 const isEditing = ref(false)
 const originalProfile = ref(null)
 const checkinStatuses = ref({})
+const myRatings = ref([])
+const ratingStats = ref({
+  total: 0,
+  avgRating: 0,
+  distribution: [
+    { star: 5, count: 0, percent: 0 },
+    { star: 4, count: 0, percent: 0 },
+    { star: 3, count: 0, percent: 0 },
+    { star: 2, count: 0, percent: 0 },
+    { star: 1, count: 0, percent: 0 }
+  ]
+})
 
 function getCheckinStatus(serviceId) {
   return checkinStatuses.value[serviceId] || 'not-checked-in'
+}
+
+function formatDate(dateStr) {
+  if (!dateStr) return ''
+  const d = new Date(dateStr)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+function getRatingLevel(rating) {
+  const levels = { 1: '很差', 2: '较差', 3: '一般', 4: '良好', 5: '优秀' }
+  return levels[rating] || '暂无'
+}
+
+function getTagLabel(tagValue) {
+  const tags = {
+    punctual: '⏰ 守时',
+    responsible: '💪 认真负责',
+    friendly: '😊 态度友好',
+    skilled: '🔧 技能优秀',
+    cooperative: '🤝 团队合作',
+    initiative: '🔥 积极主动'
+  }
+  return tags[tagValue] || tagValue
 }
 
 function getCheckinHours(serviceId) {
@@ -709,6 +816,26 @@ function handleLogout() {
   router.push('/login')
 }
 
+async function loadMyRatings() {
+  if (!user) return
+  try {
+    const res = await axios.get(`/api/ratings/user/${user.id}`)
+    myRatings.value = [].concat(res.data || [])
+  } catch (error) {
+    console.error(error)
+  }
+}
+
+async function loadRatingStats() {
+  if (!user) return
+  try {
+    const res = await axios.get(`/api/ratings/stats/${user.id}`)
+    ratingStats.value = res.data || ratingStats.value
+  } catch (error) {
+    console.error(error)
+  }
+}
+
 onMounted(() => {
   if (user) {
     loadProfile()
@@ -718,6 +845,8 @@ onMounted(() => {
     loadMyRegistrations()
     loadAllRegistrations()
     loadCheckinStatuses()
+    loadMyRatings()
+    loadRatingStats()
   }
 })
 </script>
@@ -1235,18 +1364,53 @@ onMounted(() => {
   flex-direction: column;
   gap: 18px;
   padding: 24px;
-  background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(8px);
   border-radius: 16px;
-  border: 1px solid #e2e8f0;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid rgba(59, 130, 246, 0.1);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+
+.service-card::before {
+  content: '💪';
+  position: absolute;
+  top: 16px;
+  right: 20px;
+  font-size: 20px;
+  opacity: 0.4;
+  transition: all 0.3s ease;
+}
+
+.service-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+  background: linear-gradient(180deg, #3b82f6, #60a5fa, #93c5fd);
+  opacity: 0.8;
 }
 
 .service-card:hover {
   background: white;
-  border-color: #165DFF;
+  border-color: rgba(59, 130, 246, 0.25);
   transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(22, 93, 255, 0.12);
+  box-shadow: 0 8px 28px -6px rgba(59, 130, 246, 0.15);
+}
+
+.service-card:hover::before {
+  opacity: 1;
+  transform: scale(1.3);
+  animation: flex 1s ease-in-out infinite;
+}
+
+@keyframes flex {
+  0%, 100% { transform: scale(1.3); }
+  50% { transform: scale(1.4); }
 }
 
 .service-info {
@@ -1608,15 +1772,282 @@ onMounted(() => {
 
 .service-card {
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.service-card::before {
+  content: '🌟';
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  font-size: 20px;
+  opacity: 0.4;
+  transition: all 0.3s ease;
+}
+
+.service-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+  background: linear-gradient(180deg, #3b82f6, #60a5fa, #93c5fd);
+  opacity: 0.8;
 }
 
 .service-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 8px 24px rgba(59, 130, 246, 0.15);
 }
 
-.tag.skill {
+.service-card:hover::before {
+  opacity: 1;
+  transform: scale(1.3) rotate(20deg);
+  animation: sparkle 1s ease-in-out infinite;
+}
+
+@keyframes sparkle {
+  0%, 100% { transform: scale(1.3) rotate(0deg); opacity: 1; }
+  50% { transform: scale(1.4) rotate(15deg); opacity: 1; }
+}
+
+.page-dec {
+  position: fixed;
+  font-size: 44px;
+  opacity: 0.08;
+  pointer-events: none;
+  animation: floatPage 12s ease-in-out infinite;
+  z-index: 0;
+}
+
+.page-dec.dec-1 { top: 80px; right: 30px; animation-delay: 0s; }
+.page-dec.dec-2 { top: 200px; left: 20px; animation-delay: 2s; font-size: 50px; }
+.page-dec.dec-3 { bottom: 80px; right: 50px; animation-delay: 4s; }
+.page-dec.dec-4 { bottom: 150px; left: 50px; animation-delay: 6s; font-size: 48px; }
+
+@keyframes floatPage {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  33% { transform: translateY(-18px) rotate(8deg); }
+  66% { transform: translateY(8px) rotate(-6deg); }
+}
+
+.title-badge {
+  display: inline-block;
+  margin-left: 12px;
+  animation: twinkle 1.5s ease-in-out infinite;
+}
+
+@keyframes twinkle {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.25); opacity: 0.9; }
+}
+
+.ratings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.rating-stats-card {
+  background: linear-gradient(135deg, #fef3c7, #fde68a);
+  border-radius: 20px;
+  padding: 28px;
+  box-shadow: 0 4px 20px rgba(251, 191, 36, 0.15);
+}
+
+.rating-overview {
+  display: flex;
+  align-items: center;
+  gap: 40px;
+}
+
+.rating-big-number {
+  text-align: center;
+  min-width: 140px;
+}
+
+.rating-score {
+  font-size: 64px;
+  font-weight: 800;
+  color: #d97706;
+  line-height: 1;
+  margin-bottom: 8px;
+}
+
+.rating-stars {
+  font-size: 20px;
+  margin-bottom: 8px;
+}
+
+.mini-star {
+  margin: 0 1px;
+}
+
+.rating-count {
+  font-size: 14px;
+  color: #92400e;
+  font-weight: 500;
+}
+
+.rating-distribution {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.rating-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.bar-label {
+  width: 36px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #78350f;
+}
+
+.bar-container {
+  flex: 1;
+  height: 10px;
+  background: rgba(217, 119, 6, 0.15);
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #fbbf24, #f59e0b);
+  border-radius: 5px;
+  transition: width 0.5s ease;
+}
+
+.bar-count {
+  width: 50px;
+  font-size: 13px;
+  color: #92400e;
+}
+
+.rating-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.rating-item {
+  padding: 20px;
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.03), white);
+  border-radius: 14px;
+  border: 1px solid rgba(59, 130, 246, 0.1);
+  transition: all 0.3s ease;
+}
+
+.rating-item:hover {
+  border-color: rgba(59, 130, 246, 0.2);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.1);
+}
+
+.rating-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.rating-service {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.rating-date {
+  font-size: 13px;
+  color: #64748b;
+}
+
+.rating-stars-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.star-item {
+  font-size: 20px;
+}
+
+.rating-level {
+  font-size: 14px;
+  color: #3b82f6;
+  font-weight: 600;
+}
+
+.rating-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.rating-tag {
+  padding: 4px 12px;
+  background: rgba(59, 130, 246, 0.1);
+  color: #3b82f6;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.rating-comment {
+  font-size: 14px;
+  color: #475569;
+  line-height: 1.6;
+  padding-top: 10px;
+  border-top: 1px solid rgba(59, 130, 246, 0.08);
+}
+
+.volunteer-slogan {
+  text-align: center;
+  font-size: 15px;
+  color: #3b82f6;
+  margin: -8px 0 20px 0;
+  padding: 10px 20px;
+  background: linear-gradient(90deg, rgba(59, 130, 246, 0.05), rgba(59, 130, 246, 0.1), rgba(59, 130, 246, 0.05));
+  border-radius: 20px;
+  letter-spacing: 2px;
+  font-weight: 500;
+}
+
+.slogan-icon {
+  display: inline-block;
+  animation: twinkle 1.5s ease-in-out infinite;
+  margin: 0 6px;
+}
+
+.stat-row {
+  text-align: center;
+  font-size: 15px;
+  color: #3b82f6;
+  margin: -8px 0 20px 0;
+  padding: 10px 20px;
+  background: linear-gradient(90deg, rgba(59, 130, 246, 0.05), rgba(59, 130, 246, 0.1), rgba(59, 130, 246, 0.05));
+  border-radius: 20px;
+  letter-spacing: 2px;
+  font-weight: 500;
+}
+
+.slogan-icon {
+  display: inline-block;
+  animation: twinkle 1.5s ease-in-out infinite;
+  margin: 0 6px;
+}
+
+.stat-row {
   background: linear-gradient(135deg, #fef3c7, #fde68a);
   color: #92400e;
 }

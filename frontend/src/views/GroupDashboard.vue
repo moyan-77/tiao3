@@ -1,7 +1,14 @@
 <template>
   <div class="dashboard page-container">
+    <span class="page-dec dec-1">🤝</span>
+    <span class="page-dec dec-2">💪</span>
+    <span class="page-dec dec-3">🌟</span>
+    <span class="page-dec dec-4">🏆</span>
     <div class="header-row-1">
-      <h1 class="page-title">🤝 志愿团体管理中心</h1>
+      <h1 class="page-title">🤝 志愿团体服务中心 <span class="title-badge">🤝</span></h1>
+      <p class="volunteer-slogan">
+        <span class="slogan-icon">🌿</span> 团结 · 协作 · 服务 · 成长 · 传递正能量 <span class="slogan-icon">🌿</span>
+      </p>
     </div>
     
     <div class="header-row-2">
@@ -1312,16 +1319,102 @@ onMounted(() => {
 
 .service-card {
   padding: 20px;
-  background: white;
-  border-radius: 12px;
-  border: 1px solid #e2e8f0;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-  transition: all 0.2s;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(8px);
+  border-radius: 16px;
+  border: 1px solid rgba(59, 130, 246, 0.1);
+  box-shadow: 0 4px 16px rgba(59, 130, 246, 0.06);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.service-card::before {
+  content: '🤝';
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  font-size: 20px;
+  opacity: 0.4;
+  transition: all 0.3s ease;
+}
+
+.service-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+  background: linear-gradient(180deg, #3b82f6, #60a5fa, #93c5fd);
+  opacity: 0.8;
 }
 
 .service-card:hover {
-  border-color: #cbd5e1;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+  border-color: rgba(59, 130, 246, 0.2);
+  box-shadow: 0 8px 28px -6px rgba(59, 130, 246, 0.15);
+  transform: translateY(-2px);
+}
+
+.service-card:hover::before {
+  opacity: 1;
+  transform: scale(1.3);
+  animation: shakeHands 1s ease-in-out infinite;
+}
+
+@keyframes shakeHands {
+  0%, 100% { transform: scale(1.3) rotate(0deg); }
+  25% { transform: scale(1.35) rotate(-8deg); }
+  75% { transform: scale(1.35) rotate(8deg); }
+}
+
+.page-dec {
+  position: fixed;
+  font-size: 44px;
+  opacity: 0.08;
+  pointer-events: none;
+  animation: floatPage 12s ease-in-out infinite;
+  z-index: 0;
+}
+
+.page-dec.dec-1 { top: 80px; right: 30px; animation-delay: 0s; }
+.page-dec.dec-2 { top: 200px; left: 20px; animation-delay: 2s; font-size: 50px; }
+.page-dec.dec-3 { bottom: 80px; right: 50px; animation-delay: 4s; }
+.page-dec.dec-4 { bottom: 150px; left: 50px; animation-delay: 6s; font-size: 48px; }
+
+@keyframes floatPage {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  33% { transform: translateY(-18px) rotate(8deg); }
+  66% { transform: translateY(8px) rotate(-6deg); }
+}
+
+.title-badge {
+  display: inline-block;
+  margin-left: 12px;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+}
+
+.volunteer-slogan {
+  text-align: center;
+  font-size: 15px;
+  color: #3b82f6;
+  margin: -8px 0 20px 0;
+  padding: 10px 20px;
+  background: linear-gradient(90deg, rgba(59, 130, 246, 0.05), rgba(59, 130, 246, 0.1), rgba(59, 130, 246, 0.05));
+  border-radius: 20px;
+  letter-spacing: 2px;
+  font-weight: 500;
+}
+
+.slogan-icon {
+  display: inline-block;
+  animation: pulse 2s ease-in-out infinite;
+  margin: 0 6px;
 }
 
 .service-header {

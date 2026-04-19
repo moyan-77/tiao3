@@ -1,10 +1,20 @@
 <template>
   <div class="login-page">
+    <span class="bg-dec dec-1">🎗️</span>
+    <span class="bg-dec dec-2">💝</span>
+    <span class="bg-dec dec-3">🤝</span>
+    <span class="bg-dec dec-4">🌟</span>
+    <span class="bg-dec dec-5">❤️</span>
+    <span class="bg-dec dec-6">💪</span>
+    <span class="bg-dec dec-7">🏆</span>
+    <span class="bg-dec dec-8">🌻</span>
     <div class="login-card">
       <div class="login-header">
-        <div class="logo-icon">❤️</div>
-        <h1>志愿服务管理系统</h1>
-        <p>连接爱心，传递温暖</p>
+        <div class="logo-icon">
+          <span class="heart-main">💖</span>
+        </div>
+        <h1>社区志愿服务平台</h1>
+        <p class="slogan">🤝 汇聚爱心 · 传递温暖 · 共建和谐 🌟</p>
       </div>
 
       <div class="type-selector">
@@ -164,8 +174,59 @@ const handleRegister = async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #f1f5f9;
+  background: linear-gradient(135deg, #e0f2fe 0%, #f0f9ff 50%, #dbeafe 100%);
   padding: 24px;
+  position: relative;
+  overflow: hidden;
+}
+
+.login-page::before {
+  content: '';
+  position: absolute;
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.05) 0%, transparent 70%);
+  border-radius: 50%;
+  top: -200px;
+  right: -100px;
+  pointer-events: none;
+}
+
+.login-page::after {
+  content: '';
+  position: absolute;
+  width: 400px;
+  height: 400px;
+  background: radial-gradient(circle, rgba(96, 165, 250, 0.06) 0%, transparent 70%);
+  border-radius: 50%;
+  bottom: -100px;
+  left: -100px;
+  pointer-events: none;
+}
+
+.bg-dec {
+  position: absolute;
+  font-size: 40px;
+  opacity: 0.12;
+  pointer-events: none;
+  animation: floatBg 15s ease-in-out infinite;
+  z-index: 1;
+}
+
+.bg-dec.dec-1 { top: 10%; left: 8%; animation-delay: 0s; }
+.bg-dec.dec-2 { top: 15%; right: 10%; animation-delay: 1.5s; font-size: 50px; }
+.bg-dec.dec-3 { top: 40%; left: 5%; animation-delay: 3s; font-size: 45px; }
+.bg-dec.dec-4 { top: 50%; right: 6%; animation-delay: 4.5s; }
+.bg-dec.dec-5 { bottom: 25%; left: 10%; animation-delay: 6s; font-size: 52px; }
+.bg-dec.dec-6 { bottom: 15%; right: 12%; animation-delay: 7.5s; }
+.bg-dec.dec-7 { top: 70%; left: 15%; animation-delay: 9s; font-size: 38px; }
+.bg-dec.dec-8 { bottom: 35%; right: 3%; animation-delay: 10.5s; font-size: 44px; }
+
+@keyframes floatBg {
+  0%, 100% { transform: translateY(0) rotate(0deg) scale(1); }
+  25% { transform: translateY(-25px) rotate(8deg) scale(1.05); }
+  50% { transform: translateY(-10px) rotate(-5deg) scale(1); }
+  75% { transform: translateY(-30px) rotate(5deg) scale(1.08); }
 }
 
 .login-card {
@@ -183,8 +244,29 @@ const handleRegister = async () => {
 }
 
 .logo-icon {
-  font-size: 40px;
+  font-size: 56px;
   margin-bottom: 12px;
+  display: inline-block;
+}
+
+.heart-main {
+  display: inline-block;
+  animation: heartBeat 1.5s ease-in-out infinite;
+}
+
+@keyframes heartBeat {
+  0%, 100% { transform: scale(1); }
+  14% { transform: scale(1.2); }
+  28% { transform: scale(1); }
+  42% { transform: scale(1.2); }
+  70% { transform: scale(1); }
+}
+
+.slogan {
+  color: #64748b;
+  font-size: 15px;
+  margin: 0;
+  letter-spacing: 1px;
 }
 
 .login-header h1 {

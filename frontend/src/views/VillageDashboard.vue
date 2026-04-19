@@ -1,7 +1,14 @@
 <template>
   <div class="dashboard page-container">
+    <span class="page-dec dec-1">🎗️</span>
+    <span class="page-dec dec-2">💝</span>
+    <span class="page-dec dec-3">🤝</span>
+    <span class="page-dec dec-4">❤️</span>
     <div class="header-row-1">
-      <h1 class="page-title">🏛️ 社区管理中心</h1>
+      <h1 class="page-title">🏛️ 社区志愿服务管理中心 <span class="title-badge">🎗️</span></h1>
+      <p class="volunteer-slogan">
+        <span class="slogan-icon">💖</span> 奉献 · 友爱 · 互助 · 进步 · 共建美好社区 <span class="slogan-icon">💖</span>
+      </p>
     </div>
     
     <div class="header-row-2">
@@ -222,13 +229,12 @@
             :key="idx" 
             class="reg-item"
             :class="{ 'group-member-item': item.isGroupMember, 'group-header-item': item.isGroupHeader }"
-            @click="item.data && showDetail(item.data)"
           >
-            <span class="reg-avatar">
+            <span class="reg-avatar" @click="item.data && showDetail(item.data)">
               <img v-if="item.data?.avatar" :src="item.data.avatar" class="avatar-img" />
               <span v-else>{{ (item.data?.username || '').charAt(0).toUpperCase() }}</span>
             </span>
-            <span class="reg-name clickable">
+            <span class="reg-name clickable" @click="item.data && showDetail(item.data)">
               <template v-if="item.isGroupHeader">🤝 {{ item.data?.group_name }}</template>
               <template v-else-if="item.isGroupMember">└ {{ item.data?.username }}</template>
               <template v-else>{{ item.data?.username }}</template>
@@ -241,6 +247,75 @@
             </span>
             <span v-if="item.data?.specialty" class="reg-skill">{{ item.data.specialty }}</span>
             <span v-if="item.data?.is_college" class="reg-college">🎓 高校</span>
+            <template v-if="!item.isGroupHeader && item.data?.hours_earned > 0 && item.data?.user_type !== 'group'">
+              <button 
+                v-if="!hasRated(item.data?.user_id)"
+                class="rate-btn" 
+                @click.stop="openRatingModal(item.data)"
+              >
+                ⭐ 评价
+              </button>
+              <span v-else class="rated-badge">✅ 已评价</span>
+            </template>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="showRatingModal" class="modal-overlay" @click.self="showRatingModal = false">
+      <div class="modal rating-modal">
+        <div class="modal-header">
+          <h2>🌟 评价志愿者 - {{ ratingTarget?.username }}</h2>
+          <span class="close-btn" @click="showRatingModal = false">×</span>
+        </div>
+        
+        <div class="rating-body">
+          <div class="rating-section">
+            <label class="rating-label">服务表现评分</label>
+            <div class="star-rating">
+              <span 
+                v-for="star in 5" 
+                :key="star" 
+                class="star"
+                :class="{ active: star <= currentRating }"
+                @click="currentRating = star"
+              >
+                {{ star <= currentRating ? '⭐' : '☆' }}
+              </span>
+              <span class="rating-text">{{ ratingText }}</span>
+            </div>
+          </div>
+          
+          <div class="rating-section">
+            <label class="rating-label">评价标签（可多选）</label>
+            <div class="tag-group">
+              <span 
+                v-for="tag in ratingTags" 
+                :key="tag.value" 
+                class="tag-option"
+                :class="{ selected: selectedTags.includes(tag.value) }"
+                @click="toggleTag(tag.value)"
+              >
+                {{ tag.label }}
+              </span>
+            </div>
+          </div>
+          
+          <div class="rating-section">
+            <label class="rating-label">详细评价</label>
+            <textarea 
+              v-model="ratingComment" 
+              class="rating-comment"
+              placeholder="请输入您对该志愿者的评价，帮助其他活动组织者了解该志愿者的服务表现..."
+              rows="4"
+            ></textarea>
+          </div>
+          
+          <div class="rating-footer">
+            <button class="btn-cancel" @click="showRatingModal = false">取消</button>
+            <button class="btn-submit" @click="submitRating" :disabled="!currentRating || ratingLoading">
+              {{ ratingLoading ? '提交中...' : '提交评价' }}
+            </button>
           </div>
         </div>
       </div>
@@ -310,6 +385,27 @@ const currentRegistrations = ref([])
 const currentService = ref(null)
 const loading = ref(false)
 const message = ref(null)
+const showRatingModal = ref(false)
+const ratingTarget = ref(null)
+const currentRating = ref(0)
+const ratingComment = ref('')
+const selectedTags = ref([])
+const myRatings = ref([])
+const ratingLoading = ref(false)
+
+const ratingTags = [
+  { value: 'punctual', label: '⏰ 守时' },
+  { value: 'responsible', label: '💪 认真负责' },
+  { value: 'friendly', label: '😊 态度友好' },
+  { value: 'skilled', label: '🔧 技能优秀' },
+  { value: 'cooperative', label: '🤝 团队合作' },
+  { value: 'initiative', label: '🔥 积极主动' }
+]
+
+const ratingText = computed(() => {
+  const texts = { 1: '很差', 2: '较差', 3: '一般', 4: '良好', 5: '优秀' }
+  return texts[currentRating.value] || '请点击星星评分'
+})
 
 const filters = [
   { label: '全部活动', value: 'all' },
@@ -418,6 +514,65 @@ async function loadServices() {
     services.value = [].concat(res.data || [])
   } catch (error) {
     console.error(error)
+  }
+}
+
+async function loadMyRatings() {
+  if (!user) return
+  try {
+    const res = await axios.get(`/api/ratings/rater/${user.id}`)
+    myRatings.value = [].concat(res.data || [])
+  } catch (error) {
+    console.error(error)
+  }
+}
+
+function hasRated(userId) {
+  return myRatings.value.some(r => 
+    r.service_id == currentService.value?.id && 
+    r.user_id == userId
+  )
+}
+
+function openRatingModal(item) {
+  ratingTarget.value = item
+  currentRating.value = 0
+  ratingComment.value = ''
+  selectedTags.value = []
+  showRatingModal.value = true
+}
+
+function toggleTag(tag) {
+  const idx = selectedTags.value.indexOf(tag)
+  if (idx > -1) {
+    selectedTags.value.splice(idx, 1)
+  } else {
+    selectedTags.value.push(tag)
+  }
+}
+
+async function submitRating() {
+  if (!currentRating.value || !user || !ratingTarget.value) return
+  ratingLoading.value = true
+  try {
+    await axios.post('/api/ratings', {
+      service_id: currentService.value?.id,
+      user_id: ratingTarget.value.user_id,
+      rater_id: user.id,
+      rater_type: 'village',
+      username: ratingTarget.value.username,
+      service_title: currentService.value?.title,
+      rating: currentRating.value,
+      comment: ratingComment.value,
+      tags: selectedTags.value
+    })
+    showToast('评价成功！感谢您的反馈 ⭐')
+    showRatingModal.value = false
+    await loadMyRatings()
+  } catch (error) {
+    showToast(error.response?.data?.message || '评价失败', 'error')
+  } finally {
+    ratingLoading.value = false
   }
 }
 
@@ -545,7 +700,10 @@ function handleLogout() {
 }
 
 onMounted(() => {
-  if (user) loadServices()
+  if (user) {
+    loadServices()
+    loadMyRatings()
+  }
 })
 </script>
 
@@ -724,17 +882,242 @@ onMounted(() => {
 }
 
 .service-card {
-  background: white;
-  padding: 24px;
-  border-radius: 14px;
-  box-shadow: 0 2px 12px rgba(0,0,0,0.04);
-  border: 1px solid #e2e8f0;
-  transition: all 0.2s ease;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(8px);
+  padding: 28px 24px;
+  border-radius: 18px;
+  box-shadow: 0 4px 20px rgba(59, 130, 246, 0.06);
+  border: 1px solid rgba(59, 130, 246, 0.1);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.service-card::before {
+  content: '🎗️';
+  position: absolute;
+  top: 16px;
+  right: 20px;
+  font-size: 22px;
+  opacity: 0.4;
+  transition: all 0.3s ease;
+}
+
+.service-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+  background: linear-gradient(180deg, #3b82f6, #60a5fa, #93c5fd);
+  opacity: 0.8;
 }
 
 .service-card:hover {
-  box-shadow: 0 8px 24px rgba(0,0,0,0.08);
-  transform: translateY(-2px);
+  box-shadow: 0 12px 40px -10px rgba(59, 130, 246, 0.15);
+  transform: translateY(-3px);
+  border-color: rgba(59, 130, 246, 0.2);
+}
+
+.service-card:hover::before {
+  opacity: 1;
+  transform: scale(1.3);
+  animation: wiggle 1s ease-in-out infinite;
+}
+
+@keyframes wiggle {
+  0%, 100% { transform: scale(1.3) rotate(0deg); }
+  25% { transform: scale(1.35) rotate(-5deg); }
+  75% { transform: scale(1.35) rotate(5deg); }
+}
+
+.page-dec {
+  position: fixed;
+  font-size: 44px;
+  opacity: 0.08;
+  pointer-events: none;
+  animation: floatPage 12s ease-in-out infinite;
+  z-index: 0;
+}
+
+.page-dec.dec-1 { top: 80px; right: 30px; animation-delay: 0s; }
+.page-dec.dec-2 { top: 200px; left: 20px; animation-delay: 2s; font-size: 50px; }
+.page-dec.dec-3 { bottom: 80px; right: 50px; animation-delay: 4s; }
+.page-dec.dec-4 { bottom: 150px; left: 50px; animation-delay: 6s; font-size: 48px; }
+
+@keyframes floatPage {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  33% { transform: translateY(-18px) rotate(8deg); }
+  66% { transform: translateY(8px) rotate(-6deg); }
+}
+
+.title-badge {
+  display: inline-block;
+  margin-left: 12px;
+  animation: heartBeat 2s ease-in-out infinite;
+}
+
+@keyframes heartBeat {
+  0%, 100% { transform: scale(1); }
+  15% { transform: scale(1.2); }
+  30% { transform: scale(1); }
+  45% { transform: scale(1.15); }
+}
+
+.volunteer-slogan {
+  text-align: center;
+  font-size: 15px;
+  color: #3b82f6;
+  margin: -8px 0 20px 0;
+  padding: 10px 20px;
+  background: linear-gradient(90deg, rgba(59, 130, 246, 0.05), rgba(59, 130, 246, 0.1), rgba(59, 130, 246, 0.05));
+  border-radius: 20px;
+  letter-spacing: 2px;
+  font-weight: 500;
+}
+
+.slogan-icon {
+  display: inline-block;
+  animation: heartBeat 2s ease-in-out infinite;
+  margin: 0 6px;
+}
+
+.rate-btn {
+  padding: 6px 14px;
+  background: linear-gradient(135deg, #fbbf24, #f59e0b);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(251, 191, 36, 0.3);
+}
+
+.rate-btn:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(251, 191, 36, 0.4);
+}
+
+.rated-badge {
+  padding: 6px 14px;
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: white;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.rating-modal {
+  max-width: 480px !important;
+}
+
+.rating-body {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.rating-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.rating-label {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.star-rating {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.star {
+  font-size: 32px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  filter: grayscale(30%);
+}
+
+.star:hover {
+  transform: scale(1.15);
+}
+
+.star.active {
+  filter: grayscale(0%);
+  animation: twinkle 0.5s ease;
+}
+
+@keyframes twinkle {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.2); }
+  100% { transform: scale(1); }
+}
+
+.rating-text {
+  font-size: 15px;
+  color: #64748b;
+  font-weight: 500;
+  margin-left: 8px;
+}
+
+.tag-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.tag-option {
+  padding: 8px 16px;
+  border: 2px solid #e2e8f0;
+  border-radius: 20px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  background: white;
+}
+
+.tag-option:hover {
+  border-color: #3b82f6;
+  color: #3b82f6;
+}
+
+.tag-option.selected {
+  background: linear-gradient(135deg, #3b82f6, #60a5fa);
+  color: white;
+  border-color: transparent;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+.rating-comment {
+  width: 100%;
+  padding: 14px 16px;
+  border: 2px solid #e2e8f0;
+  border-radius: 12px;
+  font-size: 14px;
+  resize: none;
+  transition: all 0.3s ease;
+  font-family: inherit;
+}
+
+.rating-comment:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.rating-footer {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 8px;
 }
 
 .card-top {
