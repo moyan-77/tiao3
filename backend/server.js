@@ -118,6 +118,19 @@ async function initDB() {
         check_out_time TIMESTAMP,
         hours INTEGER DEFAULT 0
       );
+      CREATE TABLE IF NOT EXISTS ratings (
+        id SERIAL PRIMARY KEY,
+        service_id INTEGER,
+        user_id INTEGER,
+        rater_id INTEGER,
+        rater_type TEXT,
+        username TEXT,
+        service_title TEXT,
+        rating INTEGER,
+        comment TEXT,
+        tags TEXT[],
+        created_at TIMESTAMP DEFAULT NOW()
+      );
     `);
     console.log('✅ Database tables initialized');
   } finally {
@@ -188,7 +201,7 @@ async function remove(name, filterFn) {
 initDB().catch(console.error);
 
 if (!USE_DB) {
-  ['village', 'groups', 'individuals', 'services', 'members', 'registrations', 'checkins'].forEach(async t => {
+  ['village', 'groups', 'individuals', 'services', 'members', 'registrations', 'checkins', 'ratings'].forEach(async t => {
     if (!fs.existsSync(path.join(__dirname, 'data', `${t}.json`))) await write(t, []);
   });
 }
@@ -431,14 +444,15 @@ app.post('/api/services/:id/check-out', async (req, res) => {
     await update('checkins', ch.id, { check_out_time: ch.check_out_time, hours: ch.hours });
   }
   const regs = await read('registrations');
-  const r = regs.find(x => x.service_id == req.params.id && x.user_id == user_id);
-  if (r) { 
-    r.hours_earned = hours; 
-    if (!USE_DB) {
-      await write('registrations', regs);
-    } else {
-      await update('registrations', r.id, { hours_earned: hours });
+  const userRegs = regs.filter(x => x.service_id == req.params.id && x.user_id == user_id);
+  userRegs.forEach(r => {
+    r.hours_earned = hours;
+    if (USE_DB) {
+      update('registrations', r.id, { hours_earned: hours });
     }
+  });
+  if (!USE_DB) {
+    await write('registrations', regs);
   }
   const users = await read('individuals');
   const u = users.find(x => x.id == user_id);
@@ -611,6 +625,67 @@ app.post('/api/upload/avatar', upload.single('avatar'), (req, res) => {
   const u = users.find(x => x.id == user_id);
   if (u) { u.avatar = avatar; write(file, users); }
   res.json({ avatar, message: '上传成功' });
+});
+
+app.post('/api/ratings', async (req, res) => {
+  const { service_id, user_id, rater_id, rater_type, username, service_title, rating, comment, tags } = req.body;
+  const ratings = await read('ratings');
+  const existing = ratings.find(r => r.service_id == service_id && r.user_id == user_id && r.rater_id == rater_id);
+  if (existing) return res.status(400).json({ message: '已评价过该志愿者' });
+  
+  const newRating = {
+    id: id(ratings),
+    service_id: parseInt(service_id),
+    user_id: parseInt(user_id),
+    rater_id: parseInt(rater_id),
+    rater_type,
+    username,
+    service_title,
+    rating: parseInt(rating),
+    comment,
+    tags: tags || [],
+    created_at: new Date().toISOString()
+  };
+  
+  if (!USE_DB) {
+    const data = await read('ratings');
+    data.push(newRating);
+    await write('ratings', data);
+  } else {
+    await insert('ratings', newRating);
+  }
+  res.json({ message: '评价成功', rating: newRating });
+});
+
+app.get('/api/ratings/user/:user_id', async (req, res) => {
+  const allRatings = await read('ratings');
+  const userRatings = allRatings.filter(r => r.user_id == req.params.user_id);
+  res.json(userRatings.reverse());
+});
+
+app.get('/api/ratings/service/:service_id', async (req, res) => {
+  const allRatings = await read('ratings');
+  const serviceRatings = allRatings.filter(r => r.service_id == req.params.service_id);
+  res.json(serviceRatings.reverse());
+});
+
+app.get('/api/ratings/rater/:rater_id', async (req, res) => {
+  const allRatings = await read('ratings');
+  const myRatings = allRatings.filter(r => r.rater_id == req.params.rater_id);
+  res.json(myRatings.reverse());
+});
+
+app.get('/api/ratings/stats/:user_id', async (req, res) => {
+  const allRatings = await read('ratings');
+  const userRatings = allRatings.filter(r => r.user_id == req.params.user_id);
+  const total = userRatings.length;
+  const avgRating = total ? userRatings.reduce((sum, r) => sum + r.rating, 0) / total : 0;
+  const distribution = [5, 4, 3, 2, 1].map(star => ({
+    star,
+    count: userRatings.filter(r => r.rating == star).length,
+    percent: total ? Math.round((userRatings.filter(r => r.rating == star).length / total) * 100) : 0
+  }));
+  res.json({ total, avgRating: Math.round(avgRating * 10) / 10, distribution });
 });
 
 app.use((req, res) => {
