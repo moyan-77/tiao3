@@ -2454,4 +2454,39 @@ onMounted(() => {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }
+
+@media (max-width: 768px) {
+  .rewards-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+  
+  .reward-card {
+    padding: 12px;
+  }
+  
+  .reward-image {
+    font-size: 40px;
+  }
+  
+  .reward-name {
+    font-size: 14px;
+  }
+  
+  .points-header-card {
+    flex-direction: column;
+    gap: 16px;
+    text-align: center;
+  }
+  
+  .points-rule {
+    text-align: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .rewards-grid {
+    grid-template-columns: 1fr;
+  }
+}
 </style>
